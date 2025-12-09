@@ -58,6 +58,7 @@
     <button id="downloadExcelBtn" class="small">Download Excel(.xls)</button>
     <button id="downloadCsvBtn" class="small">Download CSV</button>
     <button id="downloadSqlBtn" class="small">Download SQL</button>
+	<button id="checkDuplicateBtn" class="small">Check Duplicate</button>
     <button id="clearBtn" class="small">Clear</button>
   </div>
  
@@ -213,6 +214,39 @@
     const blob = new Blob([sql], { type: 'text/plain' });
     downloadBlob(blob, 'ids.sql');
   });
+
+
+	// Duplicate Check Button
+   document.getElementById('checkDuplicateBtn').addEventListener('click', () => {
+   const digit = parseInt(document.getElementById('digitCount').value) || 8;
+   const arr = formatList(digit);
+
+   if (!arr.length) return alert('No data found!');
+
+   // count duplicates
+   const freq = {};
+   arr.forEach(id => freq[id] = (freq[id] || 0) + 1);
+
+   // extract duplicates
+   const duplicates = Object.keys(freq).filter(key => freq[key] > 1);
+
+   if (duplicates.length === 0) {
+     alert('No duplicates found 🎉');
+     return;
+   }
+
+   // show in output panel
+   const details = duplicates
+    .map(d => `${d} → appears ${freq[d]} times`)
+    .join('\n');
+
+  const out = document.getElementById('output');
+  out.textContent = "🔴 DUPLICATES FOUND:\n" + details;
+
+  document.getElementById('count').textContent = `(${duplicates.length} duplicates)`;
+
+   alert('Duplicates found! Check output box.');
+  });
  
   document.getElementById('clearBtn').addEventListener('click', () => {
     document.getElementById('input').value = '';
@@ -230,4 +264,5 @@
 </script>
  
 </body>
+
 </html>
