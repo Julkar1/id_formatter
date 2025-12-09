@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ID Formatter</title>
+  <style>
+    body { font-family: Arial; padding: 20px; max-width: 1000px; margin: auto; }
+    textarea { width: 100%; min-height: 160px; max-height: 160px; padding: 8px; font-family: monospace; resize: vertical; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; align-items:center; }
+    .col { display:flex; flex-direction:column; gap:6px; }
+    button { padding: 8px 12px; cursor: pointer; }
+    input[type="number"], input[type="text"] { width: 200px; padding: 6px; }
+    .output { background: #f7f7f7; border: 1px solid #ccc; height: 260px; overflow-y: auto;
+              white-space: pre-wrap; padding: 8px; margin-top: 10px; font-family: monospace; }
+    label { font-weight:600; }
+    .small { width:140px; }
+  </style>
+</head>
+<body>
+ 
+<h2>ID Formatter</h2>
+<div class="col">
+  <div style="margin-top:4px;">
+    <div class="row" style="margin-top:2px;">
+	  <div class="col">
+        <label>1) How many digits?ID length after padding:</label>
+        <input type="number" id="digitCount" value="8" min="1" />
+      </div>
+      <div class="col">
+        <label>2) How many rows will there be in each file:</label>
+        <input type="number" id="splitCount" value="1000" min="1" />
+      </div>
+	  <div class="col">
+      </div>
+      <div class="col">
+        <label>3) The file name to download is:</label>
+        <input type="text" id="rName" placeholder="filename" value="formatted_id" min="15" />
+      </div>
+	  <!-- <div class="col">
+        <label>কত লাইন পরে নতুন ফাইল হবে?</label>
+        <input type="number" id="splitCount2" value="1000" min="1" />
+      </div> -->
+    </div>
+  </div>
+  
+      
+ 
+  <div style="margin-top:12px;">
+    <label>Input (paste numbers — Consecutive lines or commas or semicolons)</label>
+    <textarea id="input" placeholder="17605&#10;১২৩১১&#10;12107"></textarea>
+  </div>
+ 
+  <div class="row" style="margin-top:8px;">
+    <button id="convertBtn">Convert</button>
+    <button id="copyBtn" class="small">Copy Output</button>
+    <button id="downloadTxtBtn" class="small">Download TXT(Split)</button>
+    <button id="downloadExcelBtn" class="small">Download Excel(.xls)</button>
+    <button id="downloadCsvBtn" class="small">Download CSV</button>
+    <button id="downloadSqlBtn" class="small">Download SQL</button>
+    <button id="clearBtn" class="small">Clear</button>
+  </div>
+ 
+  <div style="margin-top:14px;">
+    <label>Output <span id="count" style="font-weight:normal;color:#333;margin-left:8px;"></span></label>
+    <div id="output" class="output"></div>
+  </div>
+</div>
+ 
+<script>
+  // Bangla → English digits mapping
+  const banglaToEnglish = {
+    "০":"0","১":"1","২":"2","৩":"3","৪":"4",
+    "৫":"5","৬":"6","৭":"7","৮":"8","৯":"9"
+  };
+ 
+  function convertBanglaDigits(str) {
+    return str.replace(/[০-৯]/g, ch => banglaToEnglish[ch]);
+  }
+ 
+  // parse input lines (split by newline, comma, semicolon)
+  function parseInputRaw() {
+    const raw = document.getElementById('input').value || '';
+    // split by newlines, commas, semicolons
+    return raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+  }
+ 
+  // format list: convert bangla digits, remove non-digits, pad to length
+  function formatList(digitCount) {
+    const rawList = parseInputRaw();
+    const formatted = rawList.map(item => {
+      let s = convertBanglaDigits(item);
+      s = s.replace(/\D/g, ''); // keep digits only
+      return s.padStart(digitCount, '0');
+    });
+    return formatted;
+  }
+ 
+  function updateOutputBox(arr) {
+    const out = document.getElementById('output');
+    out.textContent = arr.join('\n');
+    document.getElementById('count').textContent = `(${arr.length} rows)`;
+  }
+ 
+  // create single .xls (HTML table) content as Blob
+  function createXlsBlob(arr) {
+    // Build HTML table with one column header "ID"
+    const rowsHtml = arr.map(r => '<tr><td>' + escapeHtml(r) + '</td></tr>').join('');
+    const html = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body><table>' +
+                 '<tr><th>ID</th></tr>' + rowsHtml + '</table></body></html>';
+    return new Blob([html], { type: 'application/vnd.ms-excel' });
+  }
+ 
+  // create CSV Blob
+  function createCsvBlob(arr) {
+    // CSV with single column, with header
+    const lines = ['ID', ...arr];
+    return new Blob([lines.join('\\r\\n')], { type: 'text/csv;charset=utf-8;' });
+  }
+ 
+  // create SQL string: ('a','b','c')
+  function createSqlString(arr) {
+    return '(' + arr.map(x => "'" + x.replace(/'/g, "''") + "'").join(',') + ')';
+  }
+ 
+  // escape HTML for safety in table
+  function escapeHtml(text) {
+    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+ 
+  // chunk array into size
+  function chunkArray(arr, size) {
+    const res = [];
+    for (let i=0;i<arr.length;i+=size) res.push(arr.slice(i,i+size));
+    return res;
+  }
+ 
+  // download helper
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+ 
+  // Event handlers
+  document.getElementById('convertBtn').addEventListener('click', () => {
+    const digit = parseInt(document.getElementById('digitCount').value) || 8;
+    const arr = formatList(digit);
+    updateOutputBox(arr);
+  });
+ 
+  document.getElementById('copyBtn').addEventListener('click', async () => {
+    const out = document.getElementById('output').textContent;
+    if (!out) return alert('কোনো আউটপুট নেই!');
+    try {
+      await navigator.clipboard.writeText(out);
+      alert('কপি সম্পন্ন!');
+    } catch(e) {
+      alert('কপি ব্যর্থ — ব্রাউজার অনুমতি নেই।');
+    }
+  });
+ 
+  // TXT split download (use splitCount OR splitCount2 OR splitCount3; prefer first non-empty)
+  document.getElementById('downloadTxtBtn').addEventListener('click', () => {
+    const digit = parseInt(document.getElementById('digitCount').value) || 8;
+    const arr = formatList(digit);
+    if (!arr.length) return alert('ডাউনলোড করার জন্য কোনো ডেটা নেই!');
+    // choose split size: prefer splitCount, then splitCount2, then splitCount3
+    const s1 = parseInt(document.getElementById('splitCount').value) || 0;
+    //const s2 = parseInt(document.getElementById('splitCount2').value) || 0;
+    //const s3 = parseInt(document.getElementById('splitCount3').value) || 0;
+    const splitSize = s1 || 1000;
+ 
+    const chunks = chunkArray(arr, splitSize);
+    chunks.forEach((chunk, idx) => {
+      const text = chunk.join('\\n');
+      const blob = new Blob([text], { type: 'text/plain' });
+	  const reName = document.getElementById('rName').value?.trim() || '';
+      const filename = `${reName}_${idx + 1}.txt`;
+      downloadBlob(blob, filename);
+    });
+  });
+ 
+  // Excel (.xls) download — single file with full data (no splitting for Excel)
+  document.getElementById('downloadExcelBtn').addEventListener('click', () => {
+    const digit = parseInt(document.getElementById('digitCount').value) || 8;
+    const arr = formatList(digit);
+    if (!arr.length) return alert('ডাউনলোড করার জন্য কোনো ডেটা নেই!');
+    const blob = createXlsBlob(arr);
+    downloadBlob(blob, 'ids.xls');
+  });
+ 
+  // CSV download — can be opened by Excel; will include header
+  document.getElementById('downloadCsvBtn').addEventListener('click', () => {
+    const digit = parseInt(document.getElementById('digitCount').value) || 8;
+    const arr = formatList(digit);
+    if (!arr.length) return alert('ডাউনলোড করার জন্য কোনো ডেটা নেই!');
+    const blob = createCsvBlob(arr);
+    downloadBlob(blob, 'ids.csv');
+  });
+ 
+  // SQL download — single file with IN clause
+  document.getElementById('downloadSqlBtn').addEventListener('click', () => {
+    const digit = parseInt(document.getElementById('digitCount').value) || 8;
+    const arr = formatList(digit);
+    if (!arr.length) return alert('ডাউনলোড করার জন্য কোনো ডেটা নেই!');
+    const sql = createSqlString(arr);
+    const blob = new Blob([sql], { type: 'text/plain' });
+    downloadBlob(blob, 'ids.sql');
+  });
+ 
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    document.getElementById('input').value = '';
+    document.getElementById('output').textContent = '';
+    document.getElementById('count').textContent = '';
+  });
+ 
+  // auto-resize textarea
+  document.getElementById('input').addEventListener('input', function(){
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+  });
+ 
+  // initialize: if user pastes text then click convert
+</script>
+ 
+</body>
+</html>
