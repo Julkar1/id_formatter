@@ -27,8 +27,8 @@ Most importantly:
 * ✔ No software installation required
 * ✔ No internet connection or backend needed
 
-## 🚀 Live Demo (GitHub Pages)
-After enabling GitHub Pages, the tool will be available at:
+## 🚀 Live (GitHub Pages)
+the tool available at:
 ```
 https://julkar1.github.io/id_formatter/
 ```
